@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User
+from .models import User, Payment
 
 
 class CustomUserAdmin(UserAdmin):
@@ -21,6 +21,14 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('email', 'password1', 'password2', 'first_name', 'last_name', 'phone', 'city', 'avatar'),
         }),
     )
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ('user', 'payment_date', 'amount', 'payment_method', 'course', 'lesson')
+    list_filter = ('payment_method', 'payment_date')
+    search_fields = ('user__email', 'course__name', 'lesson__name')
+    readonly_fields = ('payment_date',)
 
 
 admin.site.register(User, CustomUserAdmin)
