@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Payment
+from .models import User, Payment, Subscription
+from materials.models import Course
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -42,3 +43,22 @@ class UserPaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'phone', 'city', 'avatar', 'payments']
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subscription
+        fields = ['id', 'user', 'course', 'created_at', 'updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        """
+        Проверка, что пользователь не подписывается на свой курс
+        """
+        user = self.context['request'].user
+        course = attrs.get('course')
+
+        if course and course.owner == user:
+            raise serializers.ValidationError("Нельзя подписаться на свой собственный курс")
+
+        return attrs

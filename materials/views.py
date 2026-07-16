@@ -1,46 +1,40 @@
 from rest_framework import viewsets, generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Course, Lesson
 from .serializers import CourseSerializer, LessonSerializer
 from .permissions import IsOwnerOrModeratorOrReadOnly, IsModerator
+from .paginators import CoursePaginator, LessonPaginator
 
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrModeratorOrReadOnly]
+    pagination_class = CoursePaginator
 
     def perform_create(self, serializer):
-        # Автоматически заполняем владельца
         serializer.save(owner=self.request.user)
 
     def get_queryset(self):
         user = self.request.user
 
-        # Суперпользователь видит все
-        if user.is_superuser:
-            return Course.objects.all()
+        # Все пользователи могут видеть все курсы (для подписок)
+        # Но создавать/изменять/удалять могут только свои
+        return Course.objects.all()
 
-        # Модераторы видят все курсы
-        try:
-            from django.contrib.auth.models import Group
-            moderator_group = Group.objects.get(name='moderators')
-            if user.groups.filter(id=moderator_group.id).exists():
-                return Course.objects.all()
-        except Group.DoesNotExist:
-            pass
-
-        # Обычные пользователи видят только свои курсы
-        return Course.objects.filter(owner=user)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 
 class LessonListCreateView(generics.ListCreateAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrModeratorOrReadOnly]
+    pagination_class = LessonPaginator
 
     def perform_create(self, serializer):
-        # Проверяем, что курс принадлежит пользователю или пользователь модератор
         course = serializer.validated_data.get('course')
         if not self.request.user.is_superuser:
             try:
@@ -50,7 +44,6 @@ class LessonListCreateView(generics.ListCreateAPIView):
             except Group.DoesNotExist:
                 is_moderator = False
 
-            # Если не модератор, проверяем владение курсом
             if not is_moderator and course.owner != self.request.user:
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("Вы можете создавать уроки только для своих курсов.")
