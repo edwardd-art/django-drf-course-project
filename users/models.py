@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from materials.models import Course, Lesson  # Импортируем модели из materials
 
+
+# Убираем импорт из materials
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -51,10 +52,11 @@ class Payment(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments', verbose_name='Пользователь')
     payment_date = models.DateTimeField(auto_now_add=True, verbose_name='Дата оплаты')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True, blank=True, related_name='payments',
-                               verbose_name='Оплаченный курс')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True, related_name='payments',
-                               verbose_name='Оплаченный урок')
+    # Используем строковые ссылки вместо импорта
+    course = models.ForeignKey('materials.Course', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='payments', verbose_name='Оплаченный курс')
+    lesson = models.ForeignKey('materials.Lesson', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='payments', verbose_name='Оплаченный урок')
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма оплаты')
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH,
                                       verbose_name='Способ оплаты')
