@@ -48,6 +48,13 @@ class Payment(models.Model):
     class PaymentMethod(models.TextChoices):
         CASH = 'cash', 'Наличные'
         TRANSFER = 'transfer', 'Перевод на счет'
+        STRIPE = 'stripe', 'Stripe'
+
+    class PaymentStatus(models.TextChoices):
+        PENDING = 'pending', 'Ожидает оплаты'
+        PAID = 'paid', 'Оплачен'
+        FAILED = 'failed', 'Ошибка'
+        CANCELLED = 'cancelled', 'Отменен'
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments', verbose_name='Пользователь')
     payment_date = models.DateTimeField(auto_now_add=True, verbose_name='Дата оплаты')
@@ -59,6 +66,44 @@ class Payment(models.Model):
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices,
                                       default=PaymentMethod.CASH, verbose_name='Способ оплаты')
 
+    # Поля для Stripe
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PENDING,
+        verbose_name='Статус платежа'
+    )
+    stripe_payment_intent_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='ID платежа в Stripe'
+    )
+    stripe_checkout_session_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='ID сессии Stripe'
+    )
+    stripe_price_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='ID цены в Stripe'
+    )
+    stripe_product_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='ID продукта в Stripe'
+    )
+    checkout_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name='Ссылка на оплату'
+    )
+
     class Meta:
         verbose_name = 'Платеж'
         verbose_name_plural = 'Платежи'
@@ -69,9 +114,6 @@ class Payment(models.Model):
 
 
 class Subscription(models.Model):
-    """
-    Модель подписки на обновления курса
-    """
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -90,7 +132,6 @@ class Subscription(models.Model):
     class Meta:
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
-        # Гарантируем уникальность пары пользователь-курс
         unique_together = ['user', 'course']
         ordering = ['-created_at']
 
@@ -98,8 +139,5 @@ class Subscription(models.Model):
         return f"{self.user.email} -> {self.course.name}"
 
     def clean(self):
-        """
-        Проверка, что пользователь не подписывается на свой же курс
-        """
         if self.course and self.course.owner == self.user:
             raise ValidationError("Нельзя подписаться на свой собственный курс")
