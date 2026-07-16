@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from materials.models import Course, Lesson  # Импортируем модели из materials
+from django.core.exceptions import ValidationError
 
 
 class UserManager(BaseUserManager):
@@ -51,13 +51,13 @@ class Payment(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments', verbose_name='Пользователь')
     payment_date = models.DateTimeField(auto_now_add=True, verbose_name='Дата оплаты')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True, blank=True, related_name='payments',
-                               verbose_name='Оплаченный курс')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, null=True, blank=True, related_name='payments',
-                               verbose_name='Оплаченный урок')
+    course = models.ForeignKey('materials.Course', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='payments', verbose_name='Оплаченный курс')
+    lesson = models.ForeignKey('materials.Lesson', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='payments', verbose_name='Оплаченный урок')
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма оплаты')
-    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH,
-                                      verbose_name='Способ оплаты')
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices,
+                                      default=PaymentMethod.CASH, verbose_name='Способ оплаты')
 
     class Meta:
         verbose_name = 'Платеж'
@@ -66,3 +66,40 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Платеж {self.user.email} - {self.amount} руб."
+
+
+class Subscription(models.Model):
+    """
+    Модель подписки на обновления курса
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='subscriptions',
+        verbose_name='Пользователь'
+    )
+    course = models.ForeignKey(
+        'materials.Course',
+        on_delete=models.CASCADE,
+        related_name='subscribers',
+        verbose_name='Курс'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата подписки')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        # Гарантируем уникальность пары пользователь-курс
+        unique_together = ['user', 'course']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} -> {self.course.name}"
+
+    def clean(self):
+        """
+        Проверка, что пользователь не подписывается на свой же курс
+        """
+        if self.course and self.course.owner == self.user:
+            raise ValidationError("Нельзя подписаться на свой собственный курс")
