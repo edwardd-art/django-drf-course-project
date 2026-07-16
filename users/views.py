@@ -1,15 +1,18 @@
 from rest_framework import viewsets, generics, filters, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth.models import Group
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from .models import User, Payment, Subscription
 from .serializers import (
     UserSerializer, UserCreateSerializer, PaymentSerializer,
     UserPaymentSerializer, SubscriptionSerializer
 )
+from .services import StripeService
 from materials.models import Course
 
 
@@ -55,7 +58,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['course', 'lesson', 'payment_method']
+    filterset_fields = ['course', 'lesson', 'payment_method', 'payment_status']
     ordering_fields = ['payment_date']
     ordering = ['-payment_date']
 
@@ -70,11 +73,82 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Payment.objects.all()
         return Payment.objects.filter(user=user)
 
+    @action(detail=False, methods=['post'])
+    def create_stripe_payment(self, request):
+        """
+        Создание платежа через Stripe
+        """
+        user = request.user
+        course_id = request.data.get('course_id')
+
+        if not course_id:
+            return Response(
+                {"error": "Не указан ID курса"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response(
+                {"error": "Курс не найден"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            payment = StripeService.create_payment_for_course(user, course)
+            return Response({
+                'payment_id': payment.id,
+                'checkout_url': payment.checkout_url,
+                'payment': PaymentSerializer(payment).data
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['get'])
+    def success(self, request):
+        """
+        Обработка успешной оплаты
+        """
+        session_id = request.query_params.get('session_id')
+        if not session_id:
+            return Response(
+                {"error": "Не указан ID сессии"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            payment = StripeService.confirm_payment(session_id)
+            if payment:
+                return Response({
+                    'message': 'Платеж успешно подтвержден',
+                    'payment': PaymentSerializer(payment).data
+                })
+            else:
+                return Response(
+                    {"error": "Платеж не найден или не оплачен"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['get'])
+    def cancel(self, request):
+        """
+        Обработка отмены оплаты
+        """
+        return Response({
+            'message': 'Оплата отменена'
+        }, status=status.HTTP_200_OK)
+
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для управления подписками
-    """
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
     permission_classes = [IsAuthenticated]
@@ -86,11 +160,9 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         course = serializer.validated_data.get('course')
 
-        # Проверка на дубликат
         if Subscription.objects.filter(user=user, course=course).exists():
             raise ValidationError({"detail": "Вы уже подписаны на этот курс"})
 
-        # Проверка на подписку на свой курс
         if course.owner == user:
             raise ValidationError({"detail": "Нельзя подписаться на свой собственный курс"})
 
@@ -123,12 +195,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
-        """
-        Удаление подписки
-        """
         instance = self.get_object()
 
-        # Проверяем, что пользователь удаляет свою подписку
         if instance.user != request.user:
             return Response(
                 {"detail": "Вы можете удалять только свои подписки"},
