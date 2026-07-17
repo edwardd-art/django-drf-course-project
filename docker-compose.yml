@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:15
+    container_name: lms_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-lms_db}
+      POSTGRES_USER: ${DB_USER:-lms_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lms_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lms_user} -d ${DB_NAME:-lms_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - lms_network
+
+  redis_cache:
+    image: redis:7-alpine
+    container_name: lms_redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - lms_network
+
+  web:
+    build: .
+    container_name: lms_web
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=postgres_db
+      - DB_PORT=${DB_PORT}
+      - REDIS_HOST=redis_cache
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_DB=${REDIS_DB}
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis_cache:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - lms_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  lms_network:
+    driver: bridge
