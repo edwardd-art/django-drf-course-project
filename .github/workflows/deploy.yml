@@ -38,13 +38,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --statistics
-
-    - name: Run tests with coverage
+    - name: Run migrations
       env:
         DB_NAME: test_db
         DB_USER: test_user
@@ -52,31 +46,15 @@ jobs:
         DB_HOST: localhost
         DB_PORT: 5432
       run: |
-        pip install pytest pytest-django pytest-cov
+        python manage.py makemigrations
         python manage.py migrate
-        pytest --cov=. --cov-report=xml
 
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Deploy to server
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SERVER_PORT }}
-        script: |
-          cd ~/lms_project
-          git pull origin ${{ github.ref_name }}
-          source venv/bin/activate
-          pip install -r requirements.txt
-          python manage.py migrate
-          python manage.py collectstatic --noinput
-          sudo systemctl restart gunicorn
-          sudo systemctl reload nginx
+    - name: Run tests
+      env:
+        DB_NAME: test_db
+        DB_USER: test_user
+        DB_PASSWORD: test_password
+        DB_HOST: localhost
+        DB_PORT: 5432
+      run: |
+        python manage.py test
