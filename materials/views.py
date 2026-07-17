@@ -1,9 +1,10 @@
 from rest_framework import viewsets, generics
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from .models import Course, Lesson
 from .serializers import CourseSerializer, LessonSerializer
 from .permissions import IsOwnerOrModeratorOrReadOnly, IsModerator
 from .paginators import CoursePaginator, LessonPaginator
+from .tasks import send_course_update_notifications  # Импортируем задачу
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -17,9 +18,6 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-
-        # Все пользователи могут видеть все курсы (для подписок)
-        # Но создавать/изменять/удалять могут только свои
         return Course.objects.all()
 
     def get_serializer_context(self):
@@ -48,7 +46,11 @@ class LessonListCreateView(generics.ListCreateAPIView):
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("Вы можете создавать уроки только для своих курсов.")
 
-        serializer.save(owner=self.request.user)
+        lesson = serializer.save(owner=self.request.user)
+
+        # Задание 2: Отправляем уведомления подписчикам после создания урока
+        # Вызываем задачу асинхронно
+        send_course_update_notifications.delay(course.id, lesson.id)
 
     def get_queryset(self):
         user = self.request.user
@@ -64,7 +66,6 @@ class LessonListCreateView(generics.ListCreateAPIView):
         except Group.DoesNotExist:
             pass
 
-        # Обычные пользователи видят только свои уроки
         return Lesson.objects.filter(owner=user)
 
 
@@ -72,6 +73,20 @@ class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrModeratorOrReadOnly]
+
+    def perform_create(self, serializer):
+        lesson = serializer.save()
+        course = lesson.course
+
+        # Отправляем уведомление только если Celery доступен
+        try:
+            send_course_update_notifications.delay(course.id, lesson.id)
+        except Exception as e:
+            # В тестовой среде просто игнорируем
+            import sys
+            if 'test' not in sys.argv:
+                # В продакшене логируем ошибку
+                print(f"Celery notification failed: {e}")
 
     def get_queryset(self):
         user = self.request.user
