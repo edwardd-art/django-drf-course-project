@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from .models import User, Payment, Subscription
 from .serializers import (
     UserSerializer, UserCreateSerializer, PaymentSerializer,
-    UserPaymentSerializer, SubscriptionSerializer
+    UserPaymentSerializer, SubscriptionSerializer, SetTelegramSerializer  # ← добавить импорт
 )
 from materials.models import Course
 
@@ -86,11 +86,9 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         course = serializer.validated_data.get('course')
 
-        # Проверка на дубликат
         if Subscription.objects.filter(user=user, course=course).exists():
             raise ValidationError({"detail": "Вы уже подписаны на этот курс"})
 
-        # Проверка на подписку на свой курс
         if course.owner == user:
             raise ValidationError({"detail": "Нельзя подписаться на свой собственный курс"})
 
@@ -123,12 +121,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
-        """
-        Удаление подписки
-        """
         instance = self.get_object()
 
-        # Проверяем, что пользователь удаляет свою подписку
         if instance.user != request.user:
             return Response(
                 {"detail": "Вы можете удалять только свои подписки"},
@@ -139,14 +133,16 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         return Response(
             {"detail": "Подписка успешно удалена"},
             status=status.HTTP_200_OK
-         )
+        )
 
-class SetTelegramView(generics.UpdateAPIView):
-    """
-    Установка Telegram ID для пользователя
-    """
-    serializer_class = SetTelegramSerializer
-    permission_classes = [IsAuthenticated]
 
-    def get_object(self):
-        return self.request.user
+# Временно закомментируем, пока не добавим сериализатор
+# class SetTelegramView(generics.UpdateAPIView):
+#     """
+#     Установка Telegram ID для пользователя
+#     """
+#     serializer_class = SetTelegramSerializer
+#     permission_classes = [IsAuthenticated]
+#
+#     def get_object(self):
+#         return self.request.user
