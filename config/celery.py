@@ -1,16 +1,8 @@
 import os
 from celery import Celery
-from django.conf import settings
 from celery.schedules import crontab
 
-app.conf.beat_schedule = {
-    'send_habit_reminders': {
-        'task': 'habits.tasks.send_habit_reminders',
-        'schedule': crontab(minute='*/1'),  # Каждую минуту
-    },
-}
-
-# Устанавливаем модуль настроек Django
+# Устанавливаем переменную окружения для Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 # Создаем экземпляр Celery
@@ -22,9 +14,19 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Автоматически находим задачи в приложениях
 app.autodiscover_tasks()
 
-@app.task(bind=True)
-def debug_task(self):
-    """
-    Отладочная задача для проверки работы Celery
-    """
-    print(f'Request: {self.request!r}')
+# Настройка расписания
+app.conf.beat_schedule = {
+    'send_habit_reminders': {
+        'task': 'habits.tasks.send_habit_reminders',
+        'schedule': crontab(minute='*/1'),  # Каждую минуту
+    },
+    'send_course_update_notifications': {
+        'task': 'materials.tasks.send_course_update_notifications',
+        'schedule': crontab(minute='*/5'),  # Каждые 5 минут
+    },
+}
+
+# Настройки Celery
+app.conf.timezone = 'UTC'
+app.conf.enable_utc = True
+app.conf.broker_connection_retry_on_startup = True
