@@ -1,6 +1,14 @@
 import os
 from celery import Celery
 from django.conf import settings
+from celery.schedules import crontab
+
+app.conf.beat_schedule = {
+    'send_habit_reminders': {
+        'task': 'habits.tasks.send_habit_reminders',
+        'schedule': crontab(minute='*/1'),  # Каждую минуту
+    },
+}
 
 # Устанавливаем модуль настроек Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')

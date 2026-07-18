@@ -103,3 +103,18 @@ class Subscription(models.Model):
         """
         if self.course and self.course.owner == self.user:
             raise ValidationError("Нельзя подписаться на свой собственный курс")
+
+class User(AbstractBaseUser, PermissionsMixin):
+    # ... существующие поля ...
+    telegram_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Telegram ID'
+    )
+    telegram_username = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='Telegram Username'
+    )

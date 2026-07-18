@@ -15,6 +15,19 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# DRF документация
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
+}
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -23,6 +36,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
+    'habits',
+    'drf_yasg',
 
     # Third party apps
     'rest_framework',
@@ -34,6 +50,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -128,3 +146,11 @@ CACHES = {
         }
     }
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "https://your-frontend-domain.com",
+]
+
+CORS_ALLOW_CREDENTIALS = True

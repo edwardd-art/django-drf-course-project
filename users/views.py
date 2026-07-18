@@ -139,4 +139,14 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         return Response(
             {"detail": "Подписка успешно удалена"},
             status=status.HTTP_200_OK
-        )
+         )
+
+class SetTelegramView(generics.UpdateAPIView):
+    """
+    Установка Telegram ID для пользователя
+    """
+    serializer_class = SetTelegramSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
