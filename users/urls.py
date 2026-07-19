@@ -16,7 +16,7 @@ router.register(r'users', UserViewSet)
 router.register(r'subscriptions', SubscriptionViewSet, basename='subscription')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    #path('', include(router.urls)),
 
     # JWT эндпоинты
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
