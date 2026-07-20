@@ -1,0 +1,12 @@
+[Unit]
+Description=gunicorn daemon for LMS project
+After=network.target
+
+[Service]
+User=username
+Group=www-data
+WorkingDirectory=/home/username/lms_project
+ExecStart=/home/username/lms_project/venv/bin/gunicorn --workers 3 --bind unix:/home/username/lms_project/lms.sock config.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

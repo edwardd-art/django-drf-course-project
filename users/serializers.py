@@ -62,3 +62,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Нельзя подписаться на свой собственный курс")
 
         return attrs
+
+class SetTelegramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['telegram_id', 'telegram_username']

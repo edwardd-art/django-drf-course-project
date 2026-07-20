@@ -431,7 +431,7 @@ class SubscriptionTests(APITestCase):
         # Не авторизуемся
         response = self.client.get(f'/api/courses/{self.course.id}/')
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_pagination_for_courses(self):
         """
